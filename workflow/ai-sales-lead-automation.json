@@ -1,0 +1,255 @@
+{
+  "name": "AI Sales Lead Qualification Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-sales-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "42b2c3af-8ecf-4a4b-8c10-5ad77f2e59f1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -820,
+        80
+      ],
+      "webhookId": "new-sales-lead"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "lead-name",
+              "name": "name",
+              "value": "={{ $json.body.name }}",
+              "type": "string"
+            },
+            {
+              "id": "lead-company",
+              "name": "company",
+              "value": "={{ $json.body.company }}",
+              "type": "string"
+            },
+            {
+              "id": "lead-students",
+              "name": "students",
+              "value": "={{ $json.body.students }}",
+              "type": "number"
+            },
+            {
+              "id": "lead-budget",
+              "name": "budget",
+              "value": "={{ $json.body.budget }}",
+              "type": "number"
+            },
+            {
+              "id": "lead-message",
+              "name": "message",
+              "value": "={{ $json.body.message }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a6e50e83-7986-4c83-a5af-03e7bb907fe8",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -560,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an AI sales lead qualification agent. Qualify this incoming lead using only the rules below.\n\nLead details:\nName: {{ $json.name }}\nCompany: {{ $json.company }}\nStudents: {{ $json.students }}\nBudget: {{ $json.budget }}\nMessage: {{ $json.message }}\n\nScoring rules:\n- Clear requirement: +25\n- Budget mentioned: +25\n- Wants demo/call: +30\n- Clear urgency/timeline: +20\n\nClassification:\n- 80-100 = HOT\n- 50-79 = WARM\n- Below 50 = COLD\n\nReturn structured output with these fields only:\nlead_score: number\nlead_status: string\nrequirement: string\nreason: string\nnext_action: string",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You qualify sales leads for an automation business. Be concise, factual, and follow the scoring rules exactly."
+        }
+      },
+      "id": "840c6f4d-3f2f-4e25-96d4-dfe1f097f894",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -300,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "id": "66997038-7481-44a9-b0f8-62c5d0b9a3cd",
+      "name": "Groq Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        320
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "REPLACE_WITH_GROQ_CREDENTIAL_ID",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"lead_score\": {\n      \"type\": \"number\"\n    },\n    \"lead_status\": {\n      \"type\": \"string\"\n    },\n    \"requirement\": {\n      \"type\": \"string\"\n    },\n    \"reason\": {\n      \"type\": \"string\"\n    },\n    \"next_action\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"lead_score\",\n    \"lead_status\",\n    \"requirement\",\n    \"reason\",\n    \"next_action\"\n  ]\n}"
+      },
+      "id": "3fb38256-4e4f-45ab-8852-087c30ca5531",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        -160,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "hot-lead-threshold",
+              "leftValue": "={{ $json.output.lead_score }}",
+              "rightValue": 80,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "96538b8a-1b9f-4d60-99ed-441d7412c2d4",
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        80,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "your-email@example.com",
+        "subject": "=HOT Sales Lead: {{ $('Edit Fields').item.json.company }}",
+        "emailType": "text",
+        "message": "=A HOT sales lead has been qualified.\n\nLead Score: {{ $json.output.lead_score }}\nLead Status: {{ $json.output.lead_status }}\nRequirement: {{ $json.output.requirement }}\nReason: {{ $json.output.reason }}\nNext Action: {{ $json.output.next_action }}\n\nLead Name: {{ $('Edit Fields').item.json.name }}\nCompany: {{ $('Edit Fields').item.json.company }}\nStudents: {{ $('Edit Fields').item.json.students }}\nBudget: {{ $('Edit Fields').item.json.budget }}\nMessage: {{ $('Edit Fields').item.json.message }}",
+        "options": {}
+      },
+      "id": "ca318f24-7f32-4c73-b16e-f06ae642a7d6",
+      "name": "Send a message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        340,
+        -20
+      ],
+      "webhookId": "gmail-hot-lead-notification",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-09-28T00:00:00.000Z",
+  "versionId": "portfolio-demo"
+}
